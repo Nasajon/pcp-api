@@ -1,0 +1,78 @@
+node('aws-codebuild'){
+
+    stage('Clean') {
+        deleteDir()
+    }
+    
+    stage('Fetch') {
+        timeout(time: 60, unit: 'SECONDS') {
+            checkout scm
+        }
+    }
+	
+    def APP_NAME = "pcp"
+
+    if (env.BRANCH_NAME == 'development') {
+        def CLUSTER = "nasajon-ztapilot"
+        def BRANCH = 'development'
+    }
+    else if (env.BRANCH_NAME == 'master') {
+        def CLUSTER = "nasajon-prod"
+        def BRANCH = 'production'
+    }
+    else if (env.BRANCH_NAME == 'production') {
+        def CLUSTER = "nasajon-ztapilot"
+        def BRANCH = 'master'
+    }
+    else {
+        def CLUSTER = "nasajon-ztapilot"
+        def BRANCH = 'development'
+    }
+
+    def SPRINT_VERSION = "/opt/devops/Ansible/roles/sprint_up/files/ssm_manager.py"
+	
+    stage('Environment Config') {
+      sh "auto_config"
+    }
+	
+    SPRINT = sh (
+        script: "python3 $SPRINT_VERSION -p $APP_NAME -m get -b $BRANCH -v sprint",
+        returnStdout: true
+    ).trim()
+
+    BUILD = sh (
+        script: "python3 $SPRINT_VERSION -p $APP_NAME -m get -b $BRANCH -v build",
+        returnStdout: true
+    ).trim()
+
+    def VERSION = "v2.$SPRINT.$BUILD"
+
+    stage('Docker ship'){
+        sh "docker build --no-cache --rm -t hub.nasajon.com.br/$APP_NAME:$VERSION ."
+        sh "docker push hub.nasajon.com.br/$APP_NAME:$VERSION"
+	    sh "docker rmi -f hub.nasajon.com.br/$APP_NAME:$VERSION"
+        sh "python3 $SPRINT_VERSION -p $APP_NAME -m update -b $BRANCH -v build"
+    }
+
+    stage('git clone'){        
+        sh "git clone git@github.com:NasajonSRE/helm.git"
+        sh "cp ci/values.yaml helm/charts/$APP_NAME/values.yaml"
+        sh "sed -i \"s/{{ TAG }}/$VERSION/g\" helm/charts/$APP_NAME/values.yaml"
+	
+    	dir("helm/charts/$APP_NAME"){
+        	sh "git add ."
+        	sh "git commit -m \"Rendered Helm chart values for $APP_NAME - Version $VERSION\""
+        	sh "git push -u origin main || true"
+	    }    	
+    }
+
+    stage('Deploy'){
+        docker.image("hub.nasajon.com.br/sre-utils:0.4").inside() {
+            sh "cp /workspace/argo-prod.yaml.j2 /workspace/${APP_NAME}-argo.yaml"
+            sh "sed -i \"s/{{ APP }}/$APP_NAME/g\" /workspace/${APP_NAME}-argo.yaml"
+            sh "sed -i \"s/{{ CLUSTER }}/$CLUSTER/g\" /workspace/${APP_NAME}-argo.yaml"
+            sh "sed -i \"s/{{ NAMESPACE }}/$APP_NAME/g\" /workspace/${APP_NAME}-argo.yaml"
+            sh "kubectl --kubeconfig=/workspace/kubeconfig-sre apply -f /workspace/${APP_NAME}-argo.yaml"
+	    }
+    }
+}

@@ -1,0 +1,75 @@
+replicaCount: 2
+
+image:
+  repository: hub.nasajon.com.br/pcp
+  pullPolicy: Always
+  tag: "{{ TAG }}"
+
+imagePullSecrets: 
+  - name: hub
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+  - host: api4.nasajon.app
+    paths:
+      - path: /pcp
+        pathType: ImplementationSpecific
+  tls:
+    - secretName: api4-nasajon-tls
+      hosts:
+        - api4.nasajon.app
+
+configMap:
+  create: true
+  name: "pcp"
+  data:
+    APP_NAME: "pcp"
+    ENV: "PILOTO"
+    DEBUG: "False"
+    MOPE_CODE: "pcp/2711"
+    DATABASE_HOST: "svc-192a5be4-4128-42df-9558-549c2c07052f-ddl.aws-saopaulo-1.svc.singlestore.com"
+    DATABASE_PORT: "3306"
+    APIKEY_VALIDATE_URL: "https://diretorio.nasajon.com.br/v2/api/validate"
+
+secret:
+  create: true
+  name: "pcp"
+  data: 
+    DATABASE_NAME: "pcp"
+    DATABASE_USER: "pcpweb" 
+
+resources: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
