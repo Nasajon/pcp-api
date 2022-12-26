@@ -1,0 +1,44 @@
+version: '2'
+
+services:
+    app:
+        image: pcp:latest
+        restart: always
+        ports:
+            - "80:80"
+            - "5678:5678"
+            - "5000:5000"
+        volumes:
+            - $PWD:/var/www/html        
+            - $PWD/wsgi_dev.ini:/etc/wsgi/wsgi.ini
+            - $PWD/../nsj_rest_lib/src/nsj_rest_lib:/var/www/html/nsj_rest_lib 
+        env_file:
+            - .env
+        command: sh -c "python3 /var/www/html/nasajon/wsgi.py"
+        # para usar wsgi
+        # command: sh -c "/entrypoint.sh"
+        environment:
+            - "PYTHONPATH=/var/www/html"
+
+    postgres:
+       image: postgres:11.5
+       ports:
+         - "5433:5432"
+       restart: always
+       volumes:
+           - $PWD/database/dump:/docker-entrypoint-initdb.d/
+        #    - data:/var/lib/postgresql/data:cached
+       environment:
+           - "POSTGRES_DB=tutorial"
+           - "POSTGRES_USER=postgres"
+           - "POSTGRES_PASSWORD=postgres"  
+    redis_cache:
+        image: redis 
+        restart : always
+        ports:
+           - "6379:6379"
+        command: "redis-server --appendonly yes"
+        volumes:
+           - $PWD/cache:/data          
+# volumes:
+#     data:
