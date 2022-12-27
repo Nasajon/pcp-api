@@ -34,3 +34,4 @@ typing_extensions==4.4.0
 urllib3==1.26.12
 Werkzeug==2.2.2
 wrapt==1.14.1
+nsj-rest-lib==0.1.0

@@ -7,6 +7,6 @@ import nasajon.controller.planta_controller
 import nasajon.controller.centro_de_trabalho_controller
 
 if __name__ == '__main__':
-    # application.run(port=SERVER_PORT, host="0.0.0.0", debug=DEBUG)
-    application.run(port=SERVER_PORT)
+    application.run(port=SERVER_PORT, host="0.0.0.0", debug=DEBUG)
+    # application.run(port=SERVER_PORT)
 
