@@ -1,5 +1,8 @@
 node('aws-codebuild'){
 
+    def CLUSTER = "nasajon-ztapilot"
+    def BRANCH = 'development'
+
     stage('Clean') {
         deleteDir()
     }
@@ -11,22 +14,20 @@ node('aws-codebuild'){
     }
 	
     def APP_NAME = "pcp"
+    def ARGO_NAME = "pcp"
 
     if (env.BRANCH_NAME == 'development') {
-        def CLUSTER = "nasajon-ztapilot"
-        def BRANCH = 'development'
+        CLUSTER = "nasajon-ztapilot"
+        BRANCH = 'development'
     }
     else if (env.BRANCH_NAME == 'master') {
-        def CLUSTER = "nasajon-prod"
-        def BRANCH = 'production'
+        CLUSTER = "eks-qa"
+        BRANCH = 'master'
+        ARGO_NAME = "pcp"
     }
     else if (env.BRANCH_NAME == 'production') {
-        def CLUSTER = "nasajon-ztapilot"
-        def BRANCH = 'master'
-    }
-    else {
-        def CLUSTER = "nasajon-ztapilot"
-        def BRANCH = 'development'
+        CLUSTER = "nasajon-ztapilot"
+        BRANCH = 'master'
     }
 
     def SPRINT_VERSION = "/opt/devops/Ansible/roles/sprint_up/files/ssm_manager.py"
@@ -56,23 +57,34 @@ node('aws-codebuild'){
 
     stage('git clone'){        
         sh "git clone git@github.com:NasajonSRE/helm.git"
-        sh "cp ci/values.yaml helm/charts/$APP_NAME/values.yaml"
-        sh "sed -i \"s/{{ TAG }}/$VERSION/g\" helm/charts/$APP_NAME/values.yaml"
+        if (env.BRANCH_NAME == 'production') {
+            sh "cp ci/values.yaml helm/charts/$APP_NAME/values.yaml"
+            sh "sed -i \"s/{{ TAG }}/$VERSION/g\" helm/charts/$APP_NAME/values.yaml"
+        }
+        else {
+            sh "cp ci/values.yaml helm/charts/$APP_NAME/${ARGO_NAME}-values.yaml"
+            sh "sed -i \"s/{{ TAG }}/$VERSION/g\" helm/charts/$APP_NAME/${ARGO_NAME}-values.yaml"
+        }
 	
     	dir("helm/charts/$APP_NAME"){
         	sh "git add ."
-        	sh "git commit -m \"Rendered Helm chart values for $APP_NAME - Version $VERSION\""
+        	sh "git commit -m \"Rendered Helm chart values for $ARGO_NAME - Version $VERSION\""
         	sh "git push -u origin main || true"
 	    }    	
     }
 
     stage('Deploy'){
         docker.image("hub.nasajon.com.br/sre-utils:0.4").inside() {
-            sh "cp /workspace/argo-prod.yaml.j2 /workspace/${APP_NAME}-argo.yaml"
-            sh "sed -i \"s/{{ APP }}/$APP_NAME/g\" /workspace/${APP_NAME}-argo.yaml"
-            sh "sed -i \"s/{{ CLUSTER }}/$CLUSTER/g\" /workspace/${APP_NAME}-argo.yaml"
-            sh "sed -i \"s/{{ NAMESPACE }}/$APP_NAME/g\" /workspace/${APP_NAME}-argo.yaml"
-            sh "kubectl --kubeconfig=/workspace/kubeconfig-sre apply -f /workspace/${APP_NAME}-argo.yaml"
+            sh "cp /workspace/argo-prod.yaml.j2 /workspace/${ARGO_NAME}-argo.yaml"
+            if (env.BRANCH_NAME != 'production') {
+                sh "sed -i \"s#- values.yaml#- ${ARGO_NAME}-values.yaml#g\" /workspace/${ARGO_NAME}-argo.yaml"
+            }
+            sh "sed -i \"s#./charts/{{ APP }}#./charts/${APP_NAME}#g\" /workspace/${ARGO_NAME}-argo.yaml"
+            sh "sed -i \"s/default/pcp/g\" /workspace/${ARGO_NAME}-argo.yaml"
+            sh "sed -i \"s/{{ APP }}/$ARGO_NAME/g\" /workspace/${ARGO_NAME}-argo.yaml"
+            sh "sed -i \"s/{{ CLUSTER }}/$CLUSTER/g\" /workspace/${ARGO_NAME}-argo.yaml"
+            sh "sed -i \"s/{{ NAMESPACE }}/pcp/g\" /workspace/${ARGO_NAME}-argo.yaml"
+            //sh "kubectl --kubeconfig=/workspace/kubeconfig-sre apply -f /workspace/${ARGO_NAME}-argo.yaml"
 	    }
     }
 }
