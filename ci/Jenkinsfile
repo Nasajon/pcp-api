@@ -37,12 +37,12 @@ node('aws-codebuild'){
     }
 	
     SPRINT = sh (
-        script: "python3 $SPRINT_VERSION -p $APP_NAME -m get -b $BRANCH -v sprint",
+        script: "python3 $SPRINT_VERSION -p $APP_NAME-api -m get -b $BRANCH -v sprint",
         returnStdout: true
     ).trim()
 
     BUILD = sh (
-        script: "python3 $SPRINT_VERSION -p $APP_NAME -m get -b $BRANCH -v build",
+        script: "python3 $SPRINT_VERSION -p $APP_NAME-api -m get -b $BRANCH -v build",
         returnStdout: true
     ).trim()
 
@@ -52,7 +52,7 @@ node('aws-codebuild'){
         sh "docker build --no-cache --rm -t hub.nasajon.com.br/$APP_NAME:$VERSION ."
         sh "docker push hub.nasajon.com.br/$APP_NAME:$VERSION"
 	    sh "docker rmi -f hub.nasajon.com.br/$APP_NAME:$VERSION"
-        sh "python3 $SPRINT_VERSION -p $APP_NAME -m update -b $BRANCH -v build"
+        sh "python3 $SPRINT_VERSION -p $APP_NAME-api -m update -b $BRANCH -v build"
     }
 
     stage('git clone'){        
